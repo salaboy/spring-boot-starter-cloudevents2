@@ -29,7 +29,7 @@ public class SpringBootCloudEventsStarterApplication {
 
 	@PostMapping
 	public void recieveCloudEvent(@RequestHeader Map<String, String> headers, @RequestBody Object body) {
-
+		headers.forEach((key, value) -> System.out.println(key + ":" + value));
 		CloudEvent<AttributesImpl, String> cloudEvent = readCloudEventFromRequest(headers, body);
 		System.out.println("I got a cloud event: " + cloudEvent.toString());
 		System.out.println(" -> cloud event attr: " + cloudEvent.getAttributes());
@@ -40,11 +40,12 @@ public class SpringBootCloudEventsStarterApplication {
 	private CloudEvent<AttributesImpl, String> readCloudEventFromRequest(Map<String, String> headers, Object body) {
 		return CloudEventBuilder.<String>builder()
 
-				.withId(headers.get("ce-id"))
-				.withType(headers.get("ce-type"))
-				.withSource((headers.get("ce-source")!=null)?URI.create(headers.get("ce-source")):null)
+				.withId(headers.get("Ce-Id"))
+				.withType(headers.get("Ce-Type"))
+				.withSource((headers.get("Ce-Source")!=null)?URI.create(headers.get("Ce-Source")):null)
 				.withData((body != null)?body.toString():"")
-				.withDatacontenttype((headers.get("Content-Type") != null)?headers.get("Content-Type"):"application/json").build();
+				.withDatacontenttype((headers.get("Content-Type") != null)?headers.get("Content-Type"):"application/json")
+				.build();
 	}
 
 	@GetMapping
@@ -57,17 +58,16 @@ public class SpringBootCloudEventsStarterApplication {
 				.withData("{\"name\" : \"Other From Java Cloud Event\" }")
 				.withDatacontenttype("application/json")
 				.build();
-		WebClient webClient = WebClient.builder().baseUrl("http://" + host ).build();
-		WebClient.RequestBodySpec uri = webClient.post().uri("/");
+		WebClient webClient = WebClient.builder().baseUrl( host ).build();
+		WebClient.RequestBodySpec uri = webClient.post().uri("");
 		WebClient.RequestHeadersSpec<?> headersSpec = uri.body(BodyInserters.fromValue(myCloudEvent.getData()));
 		AttributesImpl attributes = myCloudEvent.getAttributes();
 		WebClient.RequestHeadersSpec<?> header = headersSpec
-				.header("ce-id", attributes.getId())
-				.header("ce-specversion", attributes.getSpecversion())
-				.header("Content-Type", (attributes.getDatacontenttype().isPresent())?attributes.getDatacontentencoding().get():"")
-				.header("ce-type", attributes.getType())
-				.header("ce-time", (attributes.getTime().isPresent())?attributes.getTime().get().toString():"")
-				.header("ce-source", (attributes.getSource()!=null)?attributes.getSource().toString():"")
+				.header("Ce-Id", attributes.getId())
+				.header("Ce-Specversion", attributes.getSpecversion())
+				.header("Content-Type", "application/json")
+				.header("Ce-Type", attributes.getType())
+				.header("Ce-Source", (attributes.getSource()!=null)?attributes.getSource().toString():"")
 				.header("HOST", fnHost); //. this is the ksvc host
 		WebClient.ResponseSpec responseSpec = header.retrieve();
 		responseSpec.bodyToMono(String.class).doOnError(t -> t.printStackTrace())
