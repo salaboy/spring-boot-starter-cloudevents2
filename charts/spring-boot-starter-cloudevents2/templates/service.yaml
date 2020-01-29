@@ -1,0 +1,14 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: {{ include "fullname" . }}
+spec:
+  template:
+    spec:
+      containers:
+        - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+          - name: HOST
+            value: knative-external-proxy.gloo-system.svc.cluster.local
+          - name: FNHOST
+            value: cloudevents-spring-boot-1.default.example.com
