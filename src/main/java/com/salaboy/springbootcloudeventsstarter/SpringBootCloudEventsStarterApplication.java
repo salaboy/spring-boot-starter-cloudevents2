@@ -14,6 +14,7 @@ import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 @SpringBootApplication
@@ -21,75 +22,74 @@ import java.util.logging.Logger;
 
 public class SpringBootCloudEventsStarterApplication {
 
-    @Value("${host:localhost}")
-    private String host;
+	@Value("${host:localhost}")
+	private String host;
 
-    @Value("${fnhost:localhost}")
-    private String fnHost;
+	@Value("${fnhost:localhost}")
+	private String fnHost;
 
-    private final static Logger logger = Logger.getLogger(SpringBootCloudEventsStarterApplication.class.getName());
+	private final static Logger logger = Logger.getLogger(SpringBootCloudEventsStarterApplication.class.getName());
 
-    public static void main(String[] args) {
-        SpringApplication.run(SpringBootCloudEventsStarterApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(SpringBootCloudEventsStarterApplication.class, args);
+	}
 
-    @PostMapping
-    public void recieveCloudEvent(@RequestHeader Map<String, String> headers, @RequestBody Object body) {
-        headers.forEach((key, value) -> System.out.println(key + ":" + value));
-        CloudEvent<AttributesImpl, String> cloudEvent = readCloudEventFromRequest(headers, body);
-        System.out.println("I got a cloud event: " + cloudEvent.toString());
-        System.out.println(" -> cloud event attr: " + cloudEvent.getAttributes());
-        System.out.println(" -> cloud event data: " + cloudEvent.getData());
+	@PostMapping
+	public void recieveCloudEvent(@RequestHeader Map<String, String> headers, @RequestBody Object body) {
+		headers.forEach((key, value) -> System.out.println(key + ":" + value));
+		CloudEvent<AttributesImpl, String> cloudEvent = readCloudEventFromRequest(headers, body);
+		System.out.println("I got a cloud event: " + cloudEvent.toString());
+		System.out.println(" -> cloud event attr: " + cloudEvent.getAttributes());
+		System.out.println(" -> cloud event data: " + cloudEvent.getData());
 
-    }
+		sendCloudEvent();
 
-    private CloudEvent<AttributesImpl, String> readCloudEventFromRequest(Map<String, String> headers, Object body) {
-        return CloudEventBuilder.<String>builder()
+	}
 
-                .withId(headers.get("Ce-Id"))
-                .withType(headers.get("Ce-Type"))
-                .withSource((headers.get("Ce-Source") != null) ? URI.create(headers.get("Ce-Source")) : null)
-                .withData((body != null) ? body.toString() : "")
-                .withDatacontenttype((headers.get("Content-Type") != null) ? headers.get("Content-Type") : "application/json")
-                .build();
-    }
+	private CloudEvent<AttributesImpl, String> readCloudEventFromRequest(Map<String, String> headers, Object body) {
+		return CloudEventBuilder.<String>builder()
 
-    @GetMapping
-    public CloudEvent sendCloudEvent() {
-        final CloudEvent<AttributesImpl, String> myCloudEvent = CloudEventBuilder.<String>builder()
+				.withId(headers.get("Ce-Id"))
+				.withType(headers.get("Ce-Type"))
+				.withSource((headers.get("Ce-Source") != null) ? URI.create(headers.get("Ce-Source")) : null)
+				.withData((body != null) ? body.toString() : "")
+				.withDatacontenttype((headers.get("Content-Type") != null) ? headers.get("Content-Type") : "application/json")
+				.build();
+	}
 
-                .withId("1234-abcd")
-                .withType("java-event")
-                .withSource(URI.create("cloudevents-java.default.svc.cluster.local"))
-                .withData("{\"name\" : \"Other From Java Cloud Event\" }")
-                .withDatacontenttype("application/json")
-                .build();
-        WebClient webClient = WebClient.builder().baseUrl(host).filter(logRequest()).build();
+	public CloudEvent sendCloudEvent() {
+		final CloudEvent<AttributesImpl, String> myCloudEvent = CloudEventBuilder.<String>builder()
 
-        WebClient.RequestBodySpec uri = webClient.post().uri("");
-        WebClient.RequestHeadersSpec<?> headersSpec = uri.body(BodyInserters.fromValue(myCloudEvent.getData()));
-        AttributesImpl attributes = myCloudEvent.getAttributes();
-        WebClient.RequestHeadersSpec<?> header = headersSpec
-                .header("Ce-Id", attributes.getId())
-                .header("Ce-Specversion", attributes.getSpecversion())
-                .header("Content-Type", "application/json")
-                .header("Ce-Type", attributes.getType())
-                .header("Ce-Source", (attributes.getSource() != null) ? attributes.getSource().toString() : "")
-                .header("HOST", fnHost); //. this is the ksvc host
-        WebClient.ResponseSpec responseSpec = header.retrieve();
+				.withId("1234-abcd")
+				.withType("java-event")
+				.withSource(URI.create("cloudevents-spring-boot-2.default.svc.cluster.local"))
+				.withData("{\"name\" : \"Other From Java Cloud Event "+ UUID.randomUUID().toString() +"\" }")
+				.withDatacontenttype("application/json")
+				.build();
+		WebClient webClient = WebClient.builder().baseUrl(host).filter(logRequest()).build();
 
-        responseSpec.bodyToMono(String.class).doOnError(t -> t.printStackTrace())
-                .doOnSuccess(s -> System.out.println("Result -> " + s)).subscribe();
+		WebClient.RequestBodySpec uri = webClient.post().uri("");
+		WebClient.RequestHeadersSpec<?> headersSpec = uri.body(BodyInserters.fromValue(myCloudEvent.getData()));
+		AttributesImpl attributes = myCloudEvent.getAttributes();
+		WebClient.RequestHeadersSpec<?> header = headersSpec
+				.header("Ce-Id", attributes.getId())
+				.header("Ce-Specversion", attributes.getSpecversion())
+				.header("Content-Type", "application/json")
+				.header("Ce-Type", attributes.getType())
+				.header("Ce-Source", (attributes.getSource() != null) ? attributes.getSource().toString() : "")
+				.header("HOST", fnHost); //. this is the ksvc host
+		WebClient.ResponseSpec responseSpec = header.retrieve();
 
-        return myCloudEvent;
-    }
+		responseSpec.bodyToMono(String.class).doOnError(t -> t.printStackTrace())
+				.doOnSuccess(s -> System.out.println("Result -> " + s)).subscribe();
 
-    // This method returns filter function which will log request data
-    private static ExchangeFilterFunction logRequest() {
-        return ExchangeFilterFunction.ofRequestProcessor(clientRequest -> {
-            logger.info("Request: " + clientRequest.method() + " - " + clientRequest.url());
-            clientRequest.headers().forEach((name, values) -> values.forEach(value -> logger.info(name+"="+value)));
-            return Mono.just(clientRequest);
-        });
-    }
+		return myCloudEvent;
+	}
+	private static ExchangeFilterFunction logRequest() {
+		return ExchangeFilterFunction.ofRequestProcessor(clientRequest -> {
+			logger.info("Request: " + clientRequest.method() + " - " + clientRequest.url());
+			clientRequest.headers().forEach((name, values) -> values.forEach(value -> logger.info(name+"="+value)));
+			return Mono.just(clientRequest);
+		});
+	}
 }
